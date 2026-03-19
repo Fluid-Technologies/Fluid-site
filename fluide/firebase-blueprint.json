@@ -1,0 +1,91 @@
+{
+  "entities": {
+    "User": {
+      "title": "User Profile",
+      "description": "Information about a registered user.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "description": "The unique identifier for the user."
+        },
+        "email": {
+          "type": "string",
+          "format": "email",
+          "description": "The user's email address."
+        },
+        "displayName": {
+          "type": "string",
+          "description": "The user's full name."
+        },
+        "role": {
+          "type": "string",
+          "enum": ["admin", "client"],
+          "description": "The user's role in the system."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "When the user account was created."
+        }
+      },
+      "required": ["uid", "email", "role", "createdAt"]
+    },
+    "BlogPost": {
+      "title": "Blog Post",
+      "description": "An article published on the platform.",
+      "type": "object",
+      "properties": {
+        "title": {
+          "type": "string",
+          "description": "The title of the blog post."
+        },
+        "slug": {
+          "type": "string",
+          "description": "URL-friendly version of the title."
+        },
+        "content": {
+          "type": "string",
+          "description": "The full content of the post (Markdown)."
+        },
+        "excerpt": {
+          "type": "string",
+          "description": "A short summary of the post."
+        },
+        "author": {
+          "type": "string",
+          "description": "The name of the author."
+        },
+        "category": {
+          "type": "string",
+          "description": "The primary category (e.g., Workforce Management, Financial Inclusion)."
+        },
+        "tags": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "List of tags associated with the post."
+        },
+        "publishedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "When the post was published."
+        },
+        "imageUrl": {
+          "type": "string",
+          "description": "URL to the featured image."
+        }
+      },
+      "required": ["title", "slug", "content", "author", "category", "publishedAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User profile documents."
+    },
+    "/blog_posts/{postId}": {
+      "schema": "BlogPost",
+      "description": "Blog post documents."
+    }
+  }
+}

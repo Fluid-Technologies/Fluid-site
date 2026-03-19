@@ -1,0 +1,121 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: users
+    // Document ID: {userId} (matches Firebase Auth UID)
+    // Fields:
+    //   - uid: string (required) - The unique identifier for the user.
+    //   - email: string (required, email format) - The user's email address.
+    //   - displayName: string (optional) - The user's full name.
+    //   - role: string (required, enum: ['admin', 'client']) - The user's role.
+    //   - createdAt: timestamp (required) - When the user account was created.
+    //
+    // Collection: blog_posts
+    // Document ID: {postId}
+    // Fields:
+    //   - title: string (required) - The title of the blog post.
+    //   - slug: string (required) - URL-friendly version of the title.
+    //   - content: string (required) - The full content of the post (Markdown).
+    //   - excerpt: string (optional) - A short summary of the post.
+    //   - author: string (required) - The name of the author.
+    //   - category: string (required) - The primary category.
+    //   - tags: list (optional) - List of tags.
+    //   - publishedAt: timestamp (required) - When the post was published.
+    //   - imageUrl: string (optional) - URL to the featured image.
+    //
+    // ===============================================================
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() &&
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+          (request.auth.token.email == "talentedforce2@gmail.com" && request.auth.token.email_verified == true));
+    }
+
+    function isValidEmail(email) {
+      return email is string &&
+        email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
+    }
+
+    function hasRequiredFields(fields) {
+      return request.resource.data.keys().hasAll(fields);
+    }
+
+    function hasOnlyAllowedFields(fields) {
+      return request.resource.data.keys().hasOnly(fields);
+    }
+
+    // ===============================================================
+    // Domain Validators
+    // ===============================================================
+
+    function isValidUser(data) {
+      return hasRequiredFields(['uid', 'email', 'role', 'createdAt']) &&
+             hasOnlyAllowedFields(['uid', 'email', 'displayName', 'role', 'createdAt']) &&
+             data.uid == request.auth.uid &&
+             isValidEmail(data.email) &&
+             data.role in ['admin', 'client'] &&
+             data.createdAt is timestamp;
+    }
+
+    function isValidBlogPost(data) {
+      return hasRequiredFields(['title', 'slug', 'content', 'author', 'category', 'publishedAt']) &&
+             data.title is string && data.title.size() < 200 &&
+             data.slug is string && data.slug.size() < 200 &&
+             data.content is string && data.content.size() < 50000 &&
+             data.author is string && data.author.size() < 100 &&
+             data.category is string &&
+             data.publishedAt is timestamp;
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    match /users/{userId} {
+      // Users can read their own profile, admins can read all
+      allow read: if isOwner(userId) || isAdmin();
+      
+      // Users can create their own profile if it's valid and they aren't trying to make themselves admin
+      allow create: if isOwner(userId) && 
+                      isValidUser(request.resource.data) && 
+                      (request.resource.data.role == 'client' || isAdmin());
+      
+      // Users can update their own profile, but cannot change their role unless they are admin
+      allow update: if isOwner(userId) && 
+                      isValidUser(request.resource.data) && 
+                      (request.resource.data.role == resource.data.role || isAdmin()) &&
+                      request.resource.data.createdAt == resource.data.createdAt &&
+                      request.resource.data.uid == resource.data.uid;
+
+      // Only admins can delete users
+      allow delete: if isAdmin();
+    }
+
+    match /blog_posts/{postId} {
+      allow read: if true;
+      allow create, update: if isAdmin() && isValidBlogPost(request.resource.data);
+      allow delete: if isAdmin();
+    }
+
+    // Default deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
